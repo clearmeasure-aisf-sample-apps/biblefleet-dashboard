@@ -1,0 +1,52 @@
+// One tier's deploy identity: id-biblefleet-deploy-<tier>, trusted for the tier's environments, Contributor on its group
+// and writer of the blobs in it.
+targetScope = 'resourceGroup'
+
+param location string
+param tier string
+param octopusIssuer string
+param subjects array
+
+var contributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+
+resource deploy 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-biblefleet-deploy-${tier}'
+  location: location
+  tags: { system: 'biblefleet', tier: tier }
+}
+
+// One federated credential at a time: Azure refuses concurrent writes to the credentials of one identity.
+@batchSize(1)
+resource credentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
+  for (subject, i) in subjects: {
+    parent: deploy
+    name: 'octopus-${i}'
+    properties: {
+      issuer: octopusIssuer
+      subject: subject
+      audiences: ['api://AzureADTokenExchange']
+    }
+  }
+]
+
+resource role 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, deploy.id, 'contributor')
+  properties: {
+    principalId: deploy.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributor
+  }
+}
+
+// The site's files are written as this identity, with no key: Contributor manages the account, and this role lets it
+// write the files in it.
+resource files 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, deploy.id, 'blob-data-contributor')
+  properties: {
+    principalId: deploy.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+output clientId string = deploy.properties.clientId

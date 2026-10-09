@@ -1,0 +1,282 @@
+/* The fleet health dashboard: a wall for operators who act on it.
+   It wears two brands. The surfaces, the cards, the status tiles and the type are those of Octopus Deploy's dark
+   screens, because every system on this page is released there and a reader comes from there. The logo, the blue of
+   the boxes and of what is selected, the yellow and the face of the headings are Clear Measure's. */
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: dark; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+img, svg { max-width: 100%; }
+/* Layout: a bar with the logo and the fleet's name, the sections of the page beside it, then the fleet's counts, the
+   landscape, one card per system with what each of its projects runs in each environment, and what every system
+   shares. A deployment that succeeded wears Octopus's green tile. A system's state keeps its own colours: none for
+   as declared, orange for what stopped working, yellow for behind the standard, red where production is affected. */
+:root {
+  /* Octopus Deploy, dark: navy surfaces, one line colour, blue for links, green for what succeeded. */
+  --bg: #111a23; --bar: #1f303f; --side: #16212c; --surface: #111a23; --raised: #1f303f; --hover: #24394b;
+  --ink: #f4f6f8; --muted: #9fb3c5; --line: #2e475d; --line-strong: #557c9e;
+  --link: #87bfec; --ok: #00ab62; --ok-strong: #00874d;
+  --attn: #f58d3a; --attn-bg: #3a2a1c; --crit: #ff7a7a; --crit-fill: #d63d3d; --crit-bg: #3a1d22;
+  /* Clear Measure, as clearmeasure.com carries it: its primary blue, its navy, its deep navy and its accent yellow;
+     the sky blue is the logo's own. Its headings are set in Futura, with Jost as the face a browser can load. */
+  --cm-primary: #0085ca; --cm-blue: #004b87; --cm-deep: #043e6c; --cm-light-blue: #cfeaff; --cm-sky: #24abe1; --cm-yellow: #eecb1a;
+  --box: var(--cm-blue); --box-ink: #ffffff;
+  --behind: var(--cm-yellow); --behind-bg: #37321a; --flight: var(--cm-sky);
+  --display: Jost, Futura, "Futura PT", "Century Gothic", "Trebuchet MS", Roboto, "Segoe UI", Arial, sans-serif;
+  --body: Roboto, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --data: Roboto, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --radius: 4px;
+  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.5 4.5 8.5-9.5'/%3E%3C/svg%3E");
+  --cross: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M7 7l10 10M17 7L7 17'/%3E%3C/svg%3E");
+  --window: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f303f' stroke-width='2'%3E%3Crect x='4' y='5' width='16' height='14' rx='1.5'/%3E%3Cpath d='M4 9.5h16M8 13.5h8M8 16.5h5'/%3E%3C/svg%3E");
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+a:focus-visible, summary:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--cm-primary); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h1 { font-size: 1.75rem; font-weight: 700; }
+h2 { font-size: 1.15rem; font-weight: 700; }
+.num { font-family: var(--data); font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* The bar: Clear Measure's logo where Octopus has its own, the fleet's name where Octopus names the space. */
+.topbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; min-height: 56px; padding: 8px clamp(12px, 1.6vw, 24px); background: var(--bar); }
+.brand { display: inline-flex; align-items: center; }
+.brand img { display: block; height: 40px; width: auto; }
+.space { padding: 7px 14px; border-radius: var(--radius); background: var(--bg); font-family: var(--display); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.find { flex: 1 1 260px; max-width: 470px; }
+.find input { width: 100%; padding: 8px 12px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.find input::placeholder { color: var(--muted); }
+.find input:focus { border-color: var(--cm-primary); outline: 1px solid var(--cm-primary); outline-offset: 0; }
+
+.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); align-items: start; background: linear-gradient(to right, var(--side) 232px, transparent 232px); }
+.side { position: sticky; top: 56px; display: grid; gap: 2px; padding: 20px 12px; min-height: calc(100vh - 56px); background: var(--side); align-content: start; }
+.side h2 { margin: 14px 10px 6px; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.side h2:first-child { margin-top: 0; }
+.side a { padding: 8px 10px; border-radius: var(--radius); color: var(--ink); }
+.side a:hover { background: var(--hover); text-decoration: none; }
+.side a.on { background: var(--raised); color: #ffffff; box-shadow: inset 4px 0 0 var(--cm-primary); }
+
+.wall { padding: 24px clamp(16px, 2.2vw, 40px) 40px; display: grid; gap: 26px; min-width: 0; }
+.top { display: flex; flex-wrap: wrap; gap: 14px 40px; align-items: center; justify-content: space-between; }
+.top p { margin: 4px 0 0; color: var(--muted); max-width: 80ch; }
+.top p.stale { color: var(--attn); font-weight: 500; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.button { display: inline-flex; align-items: center; padding: 8px 14px; border: 1px solid var(--link); border-radius: var(--radius); color: var(--link); font-weight: 500; white-space: nowrap; }
+.button:hover { background: var(--hover); text-decoration: none; }
+.button.primary { background: var(--ok-strong); border-color: var(--ok-strong); color: #ffffff; }
+.button.primary:hover { background: var(--ok); border-color: var(--ok); }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; }
+.fact { display: grid; gap: 4px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.fact b { font-family: var(--display); font-size: 1.75rem; font-weight: 700; line-height: 1.1; }
+.fact span { font-size: .78rem; color: var(--muted); }
+.fact.attn { border-color: var(--attn); }
+.fact.attn b { color: var(--attn); }
+.fact.crit { border-color: var(--crit-fill); background: var(--crit-bg); }
+.fact.crit b { color: var(--crit); }
+.fact.behind { border-color: var(--behind); }
+.fact.behind b { color: var(--behind); }
+.fact.flight { border-color: var(--flight); }
+.fact.flight b { color: var(--flight); }
+.problem { border: 1px solid var(--attn); border-radius: var(--radius); background: var(--attn-bg); padding: 10px 14px; }
+
+.systems, .map, .shared { display: grid; gap: 12px; scroll-margin-top: 72px; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+.shown { color: var(--muted); }
+
+/* A system is drawn as Octopus draws a project group: its name and how many projects, then each project with what it
+   runs in each environment. */
+/* A card is as wide as three environments with their dates need: two beside each other only where both fit whole. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 720px), 1fr)); gap: 16px; align-items: start; }
+.tile { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radius); display: grid; min-width: 0; }
+.tile > * { padding-inline: 20px; }
+.tile > :last-child { padding-bottom: 16px; }
+.tile[data-state="attention"] { border-left-color: var(--attn); }
+.tile[data-state="behind"] { border-left-color: var(--behind); }
+.tile[data-state="critical"] { border-left-color: var(--crit-fill); background: var(--crit-bg); }
+.tile[data-state="not-read"] { border-left-style: dashed; border-left-color: var(--line-strong); }
+.tile[data-state="asleep"] { border-left-style: dotted; border-left-color: var(--line-strong); }
+.tile header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-block: 14px; border-bottom: 1px solid var(--line); }
+.tile h3 { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+.tile h3 a { color: var(--ink); }
+.tile h3 a[data-zoom] { cursor: zoom-in; }
+.count { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: var(--line); font-size: .8rem; font-weight: 500; }
+.tile header .sub { flex: 1 1 12ch; min-width: 0; }
+.tile .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+.tile > .sub, .tile > .health, .tile > .standing, .tile > .flights, .tile > .asks, .tile > ul.behind, .tile > details { margin-top: 12px; }
+.pill { font-size: .8rem; font-weight: 500; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 12px; color: var(--muted); white-space: nowrap; }
+.pill.attention { background: var(--attn-bg); border-color: var(--attn); color: var(--attn); }
+.pill.behind { background: var(--behind-bg); border-color: var(--behind); color: var(--behind); }
+.pill.critical { background: var(--crit-fill); border-color: var(--crit-fill); color: #ffffff; }
+.pill.not-read { border-style: dashed; color: var(--ink); }
+.pill.asleep { border-style: dotted; }
+
+.grid-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-weight: 500; color: var(--muted); font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
+table.releases { font-size: .95rem; min-width: 520px; }
+table.releases th, table.releases td { border-bottom: 0; padding: 10px 16px 10px 0; vertical-align: middle; }
+table.releases th { padding-top: 16px; padding-bottom: 4px; }
+td.project { font-weight: 700; }
+td.project .cell, td.rel .cell { display: flex; align-items: center; gap: 12px; }
+td.project .icon { flex: none; width: 36px; height: 36px; border-radius: var(--radius); background: #c3cfda var(--window) center / 26px no-repeat; }
+td.project .what { white-space: normal; }
+td.rel .status { flex: none; width: 30px; height: 30px; border-radius: var(--radius); background: var(--ok) var(--tick) center / 22px no-repeat; }
+td.rel.failed .status { background-color: var(--crit-fill); background-image: var(--cross); }
+td.rel.none .status { background: none; border: 1px dashed var(--line-strong); }
+td.rel .release { display: grid; }
+td.rel .release .num { font-weight: 700; color: var(--ink); }
+td.rel .release .when { color: var(--muted); font-size: .85rem; }
+td.rel.behind .release .num { color: var(--attn); }
+td.rel.failed .release .num { color: var(--crit); }
+td.rel.none .release .num { color: var(--muted); font-weight: 400; }
+
+.asks, ul.behind, .flights { margin: 0; padding-block: 0; list-style: none; display: grid; gap: 6px; }
+.asks li { border-left: 4px solid var(--attn); padding: 2px 0 2px 10px; overflow-wrap: anywhere; }
+.asks li.critical { border-left-color: var(--crit-fill); }
+ul.behind li { border-left: 4px solid var(--behind); padding: 2px 0 2px 10px; font-size: .93rem; overflow-wrap: anywhere; }
+.standing { margin-bottom: 0; color: var(--muted); font-size: .86rem; }
+.health { margin-bottom: 0; font-size: .88rem; color: var(--muted); }
+.health[data-word="healthy"] { color: var(--ok); }
+.health[data-word="not"], .health[data-word="answers"] { color: var(--crit); }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 20px; color: var(--muted); font-size: .86rem; }
+.meta b { color: var(--ink); font-weight: 500; }
+details { font-size: .88rem; }
+summary { cursor: pointer; color: var(--link); }
+details ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 5px; }
+details li span { color: var(--muted); }
+details h4 { font-family: var(--body); font-size: .75rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 12px 0 0; }
+details .grid-wrap, details .meta, details .links { margin-top: 10px; }
+.links { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .88rem; }
+table.standards td { white-space: normal; vertical-align: top; }
+table.standards td.stands { white-space: nowrap; font-weight: 500; }
+table.standards td.why { color: var(--muted); min-width: 16rem; overflow-wrap: anywhere; }
+table.standards tr[data-status="gap"] td.stands, table.standards tr[data-status="behind"] td.stands { color: var(--behind); }
+table.standards tr[data-status="broken"] td.stands { color: var(--attn); }
+table.standards tr[data-status="critical"] td.stands { color: var(--crit); }
+table.standards tr[data-status="met"] td.stands { color: var(--ok); font-weight: 400; }
+
+/* The landscape: who watches, the fleet's oversight, the subscription with every system in it, and what the systems
+   share. It is drawn by the page from the fleet's data, as boxes that wrap to the width they have, so it is never
+   wider than the screen. Boxes are Clear Measure's navy; what the systems share is its deep navy; the frame of the
+   subscription and the arrows are its primary blue. A box's edge takes the state of what it stands for. */
+.scape { display: grid; gap: 10px; }
+.scape-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px 14px; }
+.scape-row > .entity { flex: 1 1 220px; max-width: 420px; }
+.scape-rels { display: flex; flex-wrap: wrap; gap: 4px 36px; padding-inline: 18px; }
+.rel { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: .86rem; }
+.rel.right { align-self: center; }
+.rel .arrow { color: var(--cm-primary); font-size: .8rem; line-height: 1; }
+.entity { position: relative; display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; min-width: 0; padding: 12px 14px 14px; border: 2px solid var(--cm-primary); border-radius: var(--radius); background: var(--box); color: var(--box-ink); }
+a.entity:hover { text-decoration: none; filter: brightness(1.25); }
+a.entity:focus-visible, a.cluster-name:focus-visible { outline: 3px solid var(--cm-light-blue); outline-offset: 2px; }
+.entity b { font-family: var(--display); font-size: 1.1rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.entity .what { font-size: .84rem; color: var(--cm-light-blue); overflow-wrap: anywhere; }
+/* What a system's box says beyond its name: what it is made of, a tile for each environment in Octopus's colours,
+   what production runs, its state in words where it is not as declared, and two numbers. */
+.entity .made { font-size: .74rem; color: var(--muted); }
+.entity .envs { display: flex; justify-content: center; gap: 10px; margin-top: 6px; }
+.entity .env { display: grid; justify-items: center; gap: 2px; font-size: .64rem; letter-spacing: .05em; text-transform: uppercase; color: var(--cm-light-blue); }
+.entity .env i { width: 22px; height: 22px; border-radius: 3px; background: var(--ok) var(--tick) center / 16px no-repeat; }
+.entity .env.behind i { background-color: var(--attn); }
+.entity .env.failed i { background-color: var(--crit-fill); background-image: var(--cross); }
+.entity .env.none i { background: none; border: 1px dashed var(--cm-light-blue); }
+.entity .runs { margin-top: 2px; font-size: .86rem; font-weight: 700; }
+.entity .says { font-size: .8rem; font-weight: 500; }
+.entity[data-state="attention"] .says { color: var(--attn); }
+.entity[data-state="behind"] .says { color: var(--behind); }
+.entity[data-state="critical"] .says { color: var(--crit); }
+.entity .small { font-size: .74rem; color: var(--cm-light-blue); }
+.entity .pulse { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+.entity .pulse[data-word="healthy"], .entity .pulse[data-word="responding"] { background: var(--ok); }
+.entity .pulse[data-word="not"], .entity .pulse[data-word="answers"] { background: var(--crit-fill); }
+.entity .chip { margin-top: 2px; padding: 1px 8px; border: 1px solid var(--cm-primary); border-radius: 10px; font-size: .72rem; color: var(--cm-light-blue); }
+.entity.external { background: var(--cm-deep); border-color: var(--line-strong); }
+.entity.person { background: var(--cm-primary); border-color: var(--cm-primary); }
+.entity.person .what { color: #ffffff; }
+.entity[data-state="attention"] { border: 4px solid var(--attn); }
+.entity[data-state="behind"] { border: 3px solid var(--behind); }
+.entity[data-state="critical"] { border: 5px solid var(--crit-fill); }
+.entity[data-state="not-read"] { border: 2px dashed var(--ink); }
+.entity[data-state="asleep"] { background: var(--line); border: 2px dotted var(--line-strong); }
+.entity[data-zoom] { cursor: zoom-in; }
+.cluster { display: grid; gap: 12px; padding: 12px 14px 14px; border: 2px dashed var(--cm-primary); border-radius: var(--radius); }
+.cluster header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.cluster-name { font-family: var(--display); font-weight: 700; font-size: 1.05rem; color: var(--ink); }
+.cluster header .what { color: var(--muted); font-size: .86rem; }
+.scape-systems { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: .85rem; }
+.key { display: inline-flex; align-items: center; gap: 8px; }
+.swatch { width: 26px; height: 14px; background: var(--box); border: 1px solid var(--line-strong); border-radius: 2px; }
+.swatch.attention { border: 4px solid var(--attn); }
+.swatch.behind { border: 3px solid var(--behind); }
+.swatch.critical { border: 4px solid var(--crit-fill); }
+.swatch.not-read { border: 2px dashed var(--ink); }
+.swatch.asleep { background: var(--line); border-style: dotted; }
+.swatch.pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); border-color: var(--ok); }
+.swatch.flight { width: 14px; border-radius: 50%; background: var(--flight); border-color: var(--bg); }
+
+.services { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.service { border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: var(--radius); padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+.service[data-state="attention"] { border-left-color: var(--attn); }
+.service[data-state="critical"] { border-left-color: var(--crit-fill); background: var(--crit-bg); }
+.service[data-state="not-read"] { border-left-style: dashed; border-left-color: var(--line-strong); }
+.service b { font-family: var(--display); font-size: 1.05rem; font-weight: 700; }
+.service b a { color: var(--ink); }
+.service .detail { grid-column: 1 / -1; color: var(--muted); font-size: .86rem; overflow-wrap: anywhere; }
+.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 26px; scroll-margin-top: 72px; }
+.limit { display: grid; gap: 5px; min-width: 0; }
+.limit .name { font-size: .88rem; }
+.limit .where { color: var(--muted); font-size: .78rem; }
+.bar { height: 8px; background: var(--raised); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--cm-primary); }
+.bar.over i { background: var(--attn); }
+.unused { margin: 0; color: var(--muted); font-size: .86rem; }
+footer { color: var(--muted); font-size: .84rem; max-width: 90ch; }
+footer p { margin: 0 0 6px; }
+
+/* A deployment in flight: its own colour, which is not one of health. Running pulses, queued is hollow, waiting for
+   a person is ringed, and what just ended is small and still. */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.entity .flight { position: absolute; top: 6px; right: 6px; width: 14px; height: 14px; border-radius: 50%; background: var(--flight); border: 2px solid var(--bg); }
+.entity .flight.executing { animation: pulse 1.2s ease-in-out infinite; }
+.entity .flight.queued { background: var(--bg); border: 3px solid var(--flight); }
+.entity .flight.waiting { background: var(--bg); border: 4px double var(--flight); }
+.entity .flight.finished { width: 9px; height: 9px; }
+.flights li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: .93rem; overflow-wrap: anywhere; }
+.flights li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--flight); }
+.flights li.executing::before { animation: pulse 1.2s ease-in-out infinite; }
+.flights li.queued::before { background: transparent; border: 2px solid var(--flight); }
+.flights li.waiting::before { background: transparent; border: 3px double var(--flight); }
+.flights li.waiting { font-weight: 500; }
+.flights li.succeeded::before, .flights li.failed::before, .flights li.canceled::before { width: 6px; height: 6px; margin: 2px; }
+.flights li.failed { color: var(--crit); }
+.flights li.failed::before { background: var(--crit-fill); }
+@media (prefers-reduced-motion: reduce) { .entity .flight.executing, .flights li.executing::before { animation: none; } }
+
+/* Zoomed into one system: its dashboard over the whole screen, inside the fleet's page. */
+.zoom { position: fixed; inset: 0; z-index: 10; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); transform-origin: 0 0; will-change: transform, opacity; }
+.zoom-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 8px clamp(12px, 2vw, 28px); padding-top: calc(8px + env(safe-area-inset-top, 0px)); background: var(--bar); font-size: .9rem; }
+.zoom-bar button { font: inherit; font-weight: 500; padding: 6px 14px; color: var(--link); background: transparent; border: 1px solid var(--link); border-radius: var(--radius); cursor: pointer; }
+.zoom-bar button:hover { background: var(--hover); }
+.zoom-bar #zoom-name { font-family: var(--display); font-weight: 700; font-size: 1.1rem; }
+.zoom-bar a { margin-left: auto; }
+.zoom-stage { min-height: 0; }
+.zoom iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+body[data-zoomed] { overflow: hidden; }
+body[data-zoomed] .wall { visibility: hidden; }
+
+/* A narrow screen has no room for the sections beside the page: the bar and the page are enough. */
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: minmax(0, 1fr); background: none; }
+  /* The counts take little room, so the landscape is on the first screen of a phone too. */
+  .facts { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
+  .fact { padding: 8px 10px; }
+  .fact b { font-size: 1.25rem; }
+  .fact span { font-size: .7rem; }
+  .side { display: none; }
+  .topbar { position: static; }
+}
